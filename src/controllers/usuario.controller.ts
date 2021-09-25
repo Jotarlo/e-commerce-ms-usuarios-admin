@@ -1,30 +1,28 @@
+import {service} from '@loopback/core';
 import {
   Count,
   CountSchema,
   Filter,
   FilterExcludingWhere,
   repository,
-  Where,
+  Where
 } from '@loopback/repository';
 import {
-  post,
-  param,
-  get,
-  getModelSchemaRef,
-  patch,
-  put,
-  del,
-  requestBody,
-  response,
+  del, get,
+  getModelSchemaRef, param, patch, post, put, requestBody,
+  response
 } from '@loopback/rest';
-import {Usuario} from '../models';
+import {Credenciales, Usuario} from '../models';
 import {UsuarioRepository} from '../repositories';
+import {AdministradorClavesService} from '../services';
 
 export class UsuarioController {
   constructor(
     @repository(UsuarioRepository)
-    public usuarioRepository : UsuarioRepository,
-  ) {}
+    public usuarioRepository: UsuarioRepository,
+    @service(AdministradorClavesService)
+    public servicioClaves: AdministradorClavesService
+  ) { }
 
   @post('/usuarios')
   @response(200, {
@@ -44,8 +42,19 @@ export class UsuarioController {
     })
     usuario: Omit<Usuario, '_id'>,
   ): Promise<Usuario> {
-    return this.usuarioRepository.create(usuario);
+    let clave = this.servicioClaves.CrearClaveAleatoria();
+    console.log(clave)
+    let claveCifrada = this.servicioClaves.CifrarTexto(clave);
+    usuario.clave = claveCifrada;
+    let usuarioCreado = await this.usuarioRepository.create(usuario);
+    if (usuarioCreado) {
+      // Enviar clave por correo electrónico
+    }
+    return usuarioCreado;
   }
+
+
+
 
   @get('/usuarios/count')
   @response(200, {
@@ -147,4 +156,40 @@ export class UsuarioController {
   async deleteById(@param.path.string('id') id: string): Promise<void> {
     await this.usuarioRepository.deleteById(id);
   }
+
+  /**
+   * Métodos adicionales
+   */
+
+
+  @post('/identificar-usuario')
+  @response(200, {
+    description: 'Identificación de usuarios',
+    content: {'application/json': {schema: getModelSchemaRef(Credenciales)}},
+  })
+  async identificarUsuario(
+    @requestBody({
+      content: {
+        'application/json': {
+          schema: getModelSchemaRef(Credenciales, {
+            title: 'Identificar Usuario'
+          }),
+        },
+      },
+    })
+    credenciales: Credenciales,
+  ): Promise<object | null> {
+    let usuario = await this.usuarioRepository.findOne({
+      where: {
+        correo: credenciales.usuario,
+        clave: credenciales.clave
+      }
+    });
+    if (usuario) {
+      // generar token y agregarlo a la respuesta.
+    }
+    return usuario;
+  }
+
+
 }
