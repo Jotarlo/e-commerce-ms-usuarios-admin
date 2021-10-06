@@ -13,7 +13,7 @@ import {
   response
 } from '@loopback/rest';
 import {Configuracion} from '../llaves/configuracion';
-import {CambioClave, Credenciales, NotificacionCorreo, Usuario} from '../models';
+import {CambioClave, Credenciales, CredencialesRecuperarClave, NotificacionCorreo, NotificacionSms, Usuario} from '../models';
 import {UsuarioRepository} from '../repositories';
 import {AdministradorClavesService, NotificacionesService} from '../services';
 
@@ -239,11 +239,23 @@ export class UsuarioController {
         },
       },
     })
-    correo: string,
+    credenciales: CredencialesRecuperarClave,
   ): Promise<Usuario | null> {
-    let usuario = await this.servicioClaves.RecuperarClave(correo);
+    let usuario = await this.usuarioRepository.findOne({
+      where: {
+        correo: credenciales.correo
+      }
+    });
     if (usuario) {
-      // Invocar al servicio de notificaciones para enviar correo al usuario con la nueva clave
+      let clave = this.servicioClaves.CrearClaveAleatoria();
+      console.log(clave)
+      let claveCifrada = this.servicioClaves.CifrarTexto(clave);
+      usuario.clave = this.servicioClaves.CifrarTexto(clave);
+      await this.usuarioRepository.updateById(usuario._id, usuario)
+      let datos = new NotificacionSms();
+      datos.destino = usuario.celular;
+      datos.mensaje = `${Configuracion.saludo} ${usuario.nombre} <br />${Configuracion.mensajeRecuperarClave} ${clave}`;
+      this.servicioNotificaciones.EnviarSms(datos);
     }
     return usuario;
   }
