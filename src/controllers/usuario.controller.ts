@@ -15,7 +15,7 @@ import {
 import {Configuracion} from '../llaves/configuracion';
 import {CambioClave, Credenciales, CredencialesRecuperarClave, NotificacionCorreo, NotificacionSms, Usuario} from '../models';
 import {UsuarioRepository} from '../repositories';
-import {AdministradorClavesService, NotificacionesService} from '../services';
+import {AdministradorClavesService, NotificacionesService, SesionUsuariosService} from '../services';
 
 export class UsuarioController {
   constructor(
@@ -24,7 +24,9 @@ export class UsuarioController {
     @service(AdministradorClavesService)
     public servicioClaves: AdministradorClavesService,
     @service(NotificacionesService)
-    public servicioNotificaciones: NotificacionesService
+    public servicioNotificaciones: NotificacionesService,
+    @service(SesionUsuariosService)
+    private servicioSesionUsuario: SesionUsuariosService
   ) { }
 
   @post('/usuarios')
@@ -184,17 +186,16 @@ export class UsuarioController {
     })
     credenciales: Credenciales,
   ): Promise<object | null> {
-    let usuario = await this.usuarioRepository.findOne({
-      where: {
-        correo: credenciales.usuario,
-        clave: credenciales.clave
-      }
-    });
+    let usuario = await this.servicioSesionUsuario.IdentificarUsuario(credenciales);
+    let tk = "";
     if (usuario) {
       usuario.clave = "";
-      // generar token y agregarlo a la respuesta.
+      tk = await this.servicioSesionUsuario.GenerarToken(usuario);
     }
-    return usuario;
+    return {
+      token: tk,
+      usuario: usuario
+    };
   }
 
 
